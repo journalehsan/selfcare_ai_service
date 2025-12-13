@@ -1,0 +1,238 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TARGET_DIR="$PROJECT_ROOT/target"
+LOGS_DIR="$PROJECT_ROOT/logs"
+PID_FILE="$TARGET_DIR/selfcare_ai_service.pid"
+
+MODEL_REPO="${MODEL_REPO:-mistralai/Mistral-7B-Instruct-v0.2}"
+MODEL_DIR="${MODEL_DIR:-$PROJECT_ROOT/models/mistral-7b-instruct-v0.2}"
+HF_CACHE_DIR="${HF_CACHE_DIR:-$PROJECT_ROOT/.cache/huggingface}"
+HF_VENV_DIR="${HF_VENV_DIR:-$PROJECT_ROOT/.venv/hf_cli}"
+HF_CMD="${HF_CMD:-}"
+
+mkdir -p "$TARGET_DIR" "$LOGS_DIR" "$MODEL_DIR" "$HF_CACHE_DIR"
+
+log() {
+    printf '[%s] %s\n' "$(date +'%Y-%m-%dT%H:%M:%S')" "$*"
+}
+
+require_cmd() {
+    if ! command -v "$1" >/dev/null 2>&1; then
+        log "Missing required command: $1"
+        exit 1
+    fi
+}
+
+install_huggingface_cli() {
+    if command -v huggingface-cli >/dev/null 2>&1; then
+        HF_CMD="$(command -v huggingface-cli)"
+        return
+    fi
+    if command -v hf >/dev/null 2>&1; then
+        HF_CMD="$(command -v hf)"
+        return
+    fi
+
+    if command -v pipx >/dev/null 2>&1; then
+        log "Installing huggingface-cli via pipx."
+        pipx install huggingface-hub >/dev/null 2>&1 || pipx install --force huggingface-hub >/dev/null 2>&1 || true
+        if command -v huggingface-cli >/dev/null 2>&1; then
+            HF_CMD="$(command -v huggingface-cli)"
+            return
+        fi
+        if command -v hf >/dev/null 2>&1; then
+            HF_CMD="$(command -v hf)"
+            return
+        fi
+        log "pipx installation did not make 'hf' or 'huggingface-cli' available."
+    fi
+
+    require_cmd python3
+    if [[ ! -d "$HF_VENV_DIR" ]]; then
+        log "Creating virtualenv for huggingface-cli at $HF_VENV_DIR"
+        mkdir -p "$(dirname "$HF_VENV_DIR")"
+        python3 -m venv "$HF_VENV_DIR"
+    fi
+
+    log "Installing huggingface_hub inside the virtualenv."
+    "$HF_VENV_DIR/bin/python" -m pip install --upgrade pip >/dev/null
+    if ! "$HF_VENV_DIR/bin/python" -m pip install --upgrade huggingface-hub >/dev/null; then
+        log "Failed to install huggingface_hub in virtualenv. Install it manually and re-run setup."
+        exit 1
+    fi
+
+    export PATH="$HF_VENV_DIR/bin:$PATH"
+    hash -r || true
+
+    if command -v huggingface-cli >/dev/null 2>&1; then
+        HF_CMD="$(command -v huggingface-cli)"
+        return
+    fi
+    if command -v hf >/dev/null 2>&1; then
+        HF_CMD="$(command -v hf)"
+        return
+    fi
+
+    log "Neither 'hf' nor 'huggingface-cli' is available after installation."
+    log "Virtualenv bin directory listing:"
+    ls -la "$HF_VENV_DIR/bin" || true
+    exit 1
+}
+
+download_model() {
+    if [[ -n "$(ls -A "$MODEL_DIR" 2>/dev/null)" ]]; then
+        log "Model already present at $MODEL_DIR"
+        return
+    fi
+
+    install_huggingface_cli
+
+    log "Downloading $MODEL_REPO into $MODEL_DIR"
+    if [[ -z "${HF_CMD}" ]]; then
+        log "HF_CMD was not resolved; cannot download model."
+        exit 1
+    fi
+
+    local hf_basename
+    hf_basename="$(basename "$HF_CMD")"
+
+    if [[ "$hf_basename" == "hf" ]]; then
+        if ! "$HF_CMD" download \
+            "$MODEL_REPO" \
+            --repo-type model \
+            --cache-dir "$HF_CACHE_DIR" \
+            --local-dir "$MODEL_DIR" \
+            --include '*' \
+            --exclude 'pytorch_model*' \
+            --exclude '*.bin'; then
+            log "Model download failed. Ensure you have set the HUGGING_FACE_HUB_TOKEN if required."
+            exit 1
+        fi
+    else
+        if ! HF_HOME="$HF_CACHE_DIR" "$HF_CMD" download \
+            "$MODEL_REPO" \
+            --local-dir "$MODEL_DIR" \
+            --local-dir-use-symlinks False; then
+            log "Model download failed. Ensure you have set the HUGGING_FACE_HUB_TOKEN if required."
+            exit 1
+        fi
+    fi
+
+    if [[ -z "$(ls -A "$MODEL_DIR" 2>/dev/null)" ]]; then
+        log "Model download completed but $MODEL_DIR is empty."
+        exit 1
+    fi
+
+    log "Model downloaded successfully."
+}
+
+build_project() {
+    require_cmd cargo
+    log "Fetching dependencies..."
+    cargo fetch --locked
+    log "Building release binary..."
+    cargo build --release
+}
+
+setup() {
+    build_project
+    download_model
+    log "Setup complete. Configure MODEL_PATH=$MODEL_DIR if you override defaults."
+}
+
+start() {
+    if [[ -f "$PID_FILE" ]]; then
+        if kill -0 "$(cat "$PID_FILE")" >/dev/null 2>&1; then
+            log "Service already running with PID $(cat "$PID_FILE")"
+            exit 0
+        else
+            rm -f "$PID_FILE"
+        fi
+    fi
+
+    require_cmd cargo
+    log "Starting SelfCare AI Service..."
+    (
+        cd "$PROJECT_ROOT"
+        export MODEL_PATH="$MODEL_DIR"
+        export HUGGINGFACE_CACHE_DIR="$HF_CACHE_DIR"
+        nohup cargo run --release >"$LOGS_DIR/service.log" 2>&1 &
+        echo $! >"$PID_FILE"
+    )
+    log "Service started with PID $(cat "$PID_FILE"). Logs: $LOGS_DIR/service.log"
+}
+
+stop() {
+    if [[ ! -f "$PID_FILE" ]]; then
+        log "No PID file found; service is not running?"
+        return
+    fi
+
+    local pid
+    pid="$(cat "$PID_FILE")"
+    if ! kill -0 "$pid" >/dev/null 2>&1; then
+        log "Process $pid is not running. Cleaning up stale PID file."
+        rm -f "$PID_FILE"
+        return
+    fi
+
+    log "Stopping service with PID $pid"
+    kill "$pid"
+    for _ in {1..20}; do
+        if kill -0 "$pid" >/dev/null 2>&1; then
+            sleep 0.5
+        else
+            break
+        fi
+    done
+    if kill -0 "$pid" >/dev/null 2>&1; then
+        log "Process did not exit gracefully; sending SIGKILL"
+        kill -9 "$pid" || true
+    fi
+    rm -f "$PID_FILE"
+    log "Service stopped."
+}
+
+restart() {
+    stop
+    start
+}
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") <command>
+
+Commands:
+  setup    Fetch dependencies, build the binary, and download the Mistral model
+  start    Start the service in the background (logs written to $LOGS_DIR/service.log)
+  stop     Stop the background service
+  restart  Restart the background service
+  status   Display whether the service is running
+  help     Show this message
+EOF
+}
+
+status() {
+    if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" >/dev/null 2>&1; then
+        log "Service is running with PID $(cat "$PID_FILE")"
+    else
+        log "Service is not running."
+    fi
+}
+
+cmd="${1:-help}"
+case "$cmd" in
+    setup) setup ;;
+    start) start ;;
+    stop) stop ;;
+    restart) restart ;;
+    status) status ;;
+    help|--help|-h) usage ;;
+    *)
+        log "Unknown command: $cmd"
+        usage
+        exit 1
+        ;;
+esac

@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>SelfCare AI Service – API Showcase</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script
+            defer
+            src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
+        ></script>
+    </head>
+    <body
+        class="bg-slate-950 text-slate-100 min-h-screen"
+        x-data="selfCareUI()"
+    >
+        <div class="max-w-6xl mx-auto px-4 py-10 space-y-10">
+            <header class="space-y-2 text-center">
+                <p class="text-xs uppercase tracking-[0.3em] text-emerald-300">
+                    SelfCare AI Service
+                </p>
+                <h1 class="text-4xl font-semibold">API Showcase</h1>
+                <p class="text-slate-400 text-lg max-w-2xl mx-auto">
+                    Quickly interact with the chat, log analysis, and script
+                    generation endpoints. Adjust the base URL to target a remote
+                    instance.
+                </p>
+                <div
+                    class="mt-6 flex flex-col sm:flex-row gap-3 items-center justify-center"
+                >
+                    <label
+                        class="text-sm uppercase tracking-widest text-slate-400"
+                        >Base URL</label
+                    >
+                    <input
+                        class="w-full sm:w-96 rounded-md bg-slate-900 border border-slate-700 px-4 py-2 text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                        type="text"
+                        x-model="baseUrl"
+                    />
+                </div>
+            </header>
+
+            <section class="grid gap-6 md:grid-cols-2">
+                <div
+                    class="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 shadow-xl shadow-slate-950/40 rounded-2xl p-6 space-y-4"
+                >
+                    <div class="flex items-center gap-2">
+                        <span
+                            class="text-xs uppercase tracking-[0.3em] text-emerald-300"
+                            >Endpoint</span
+                        >
+                        <span
+                            class="px-2 py-0.5 text-xs rounded-full bg-emerald-900/30 text-emerald-200"
+                            >POST /api/chat</span
+                        >
+                    </div>
+                    <h2 class="text-2xl font-semibold">AI Chat</h2>
+                    <p class="text-slate-400 text-sm">
+                        Send a message to the model and get a response.
+                        Optionally include a conversation ID.
+                    </p>
+
+                    <label
+                        class="text-xs uppercase text-slate-400 tracking-widest"
+                        >Message</label
+                    >
+                    <textarea
+                        class="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
+                        rows="3"
+                        x-model="chat.message"
+                    ></textarea>
+
+                    <label
+                        class="text-xs uppercase text-slate-400 tracking-widest"
+                        >Conversation ID (optional)</label
+                    >
+                    <input
+                        type="text"
+                        class="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
+                        x-model="chat.conversationId"
+                    />
+
+                    <button
+                        class="w-full bg-emerald-500 text-slate-950 font-semibold py-2 rounded-md hover:bg-emerald-400 transition disabled:opacity-40"
+                        :disabled="chat.loading"
+                        @click="sendChat"
+                    >
+                        <template x-if="!chat.loading">Send Message</template>
+                        <template x-if="chat.loading">Sending…</template>
+                    </button>
+
+                    <template x-if="chat.response">
+                        <div
+                            class="bg-slate-950/60 border border-emerald-500/40 rounded-md p-3"
+                        >
+                            <p
+                                class="text-xs uppercase tracking-widest text-emerald-300 mb-2"
+                            >
+                                Response
+                            </p>
+                            <pre
+                                class="text-xs whitespace-pre-wrap"
+                                x-text="chat.response"
+                            ></pre>
+                        </div>
+                    </template>
+
+                    <template x-if="chat.error">
+                        <p class="text-xs text-red-400" x-text="chat.error"></p>
+                    </template>
+                </div>
+
+                <div
+                    class="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 shadow-xl shadow-slate-950/40 rounded-2xl p-6 space-y-4"
+                >
+                    <div class="flex items-center gap-2">
+                        <span
+                            class="text-xs uppercase tracking-[0.3em] text-emerald-300"
+                            >Endpoint</span
+                        >
+                        <span
+                            class="px-2 py-0.5 text-xs rounded-full bg-emerald-900/30 text-emerald-200"
+                            >POST /api/analyze-logs</span
+                        >
+                    </div>
+                    <h2 class="text-2xl font-semibold">Log Analysis</h2>
+                    <p class="text-slate-400 text-sm">
+                        Paste your logs and optional context to get insights.
+                    </p>
+
+                    <label
+                        class="text-xs uppercase text-slate-400 tracking-widest"
+                        >Logs</label
+                    >
+                    <textarea
+                        class="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
+                        rows="5"
+                        x-model="logAnalysis.logs"
+                    ></textarea>
+
+                    <label
+                        class="text-xs uppercase text-slate-400 tracking-widest"
+                        >Context (optional)</label
+                    >
+                    <input
+                        type="text"
+                        class="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
+                        x-model="logAnalysis.context"
+                    />
+
+                    <button
+                        class="w-full bg-emerald-500 text-slate-950 font-semibold py-2 rounded-md hover:bg-emerald-400 transition disabled:opacity-40"
+                        :disabled="logAnalysis.loading"
+                        @click="sendLogAnalysis"
+                    >
+                        <template x-if="!logAnalysis.loading"
+                            >Analyze Logs</template
+                        >
+                        <template x-if="logAnalysis.loading"
+                            >Analyzing…</template
+                        >
+                    </button>
+
+                    <template x-if="logAnalysis.response">
+                        <div
+                            class="bg-slate-950/60 border border-emerald-500/40 rounded-md p-3"
+                        >
+                            <p
+                                class="text-xs uppercase tracking-widest text-emerald-300 mb-2"
+                            >
+                                Response
+                            </p>
+                            <pre
+                                class="text-xs whitespace-pre-wrap"
+                                x-text="logAnalysis.response"
+                            ></pre>
+                        </div>
+                    </template>
+
+                    <template x-if="logAnalysis.error">
+                        <p
+                            class="text-xs text-red-400"
+                            x-text="logAnalysis.error"
+                        ></p>
+                    </template>
+                </div>
+            </section>
+
+            <section
+                class="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 shadow-xl shadow-slate-950/40 rounded-2xl p-6 space-y-4"
+            >
+                <div class="flex items-center gap-2">
+                    <span
+                        class="text-xs uppercase tracking-[0.3em] text-emerald-300"
+                        >Endpoint</span
+                    >
+                    <span
+                        class="px-2 py-0.5 text-xs rounded-full bg-emerald-900/30 text-emerald-200"
+                        >POST /api/generate-script</span
+                    >
+                </div>
+                <h2 class="text-2xl font-semibold">Script Generation</h2>
+                <p class="text-slate-400 text-sm">
+                    Describe your requirement to generate a shell, Python, or
+                    PowerShell script.
+                </p>
+
+                <div class="grid md:grid-cols-3 gap-4">
+                    <div>
+                        <label
+                            class="text-xs uppercase text-slate-400 tracking-widest"
+                            >Environment</label
+                        >
+                        <select
+                            class="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
+                            x-model="script.environment"
+                        >
+                            <option value="linux">Linux</option>
+                            <option value="windows">Windows</option>
+                            <option value="macos">macOS</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label
+                            class="text-xs uppercase text-slate-400 tracking-widest"
+                            >Language</label
+                        >
+                        <select
+                            class="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
+                            x-model="script.language"
+                        >
+                            <option value="bash">Bash</option>
+                            <option value="python">Python</option>
+                            <option value="powershell">PowerShell</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label
+                            class="text-xs uppercase text-slate-400 tracking-widest"
+                            >Requirement</label
+                        >
+                        <input
+                            type="text"
+                            class="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
+                            placeholder="e.g. clean temp files"
+                            x-model="script.requirement"
+                        />
+                    </div>
+                </div>
+
+                <button
+                    class="w-full bg-emerald-500 text-slate-950 font-semibold py-2 rounded-md hover:bg-emerald-400 transition disabled:opacity-40"
+                    :disabled="script.loading"
+                    @click="sendScriptGeneration"
+                >
+                    <template x-if="!script.loading">Generate Script</template>
+                    <template x-if="script.loading">Generating…</template>
+                </button>
+
+                <template x-if="script.response">
+                    <div
+                        class="bg-slate-950/60 border border-emerald-500/40 rounded-md p-3"
+                    >
+                        <p
+                            class="text-xs uppercase tracking-widest text-emerald-300 mb-2"
+                        >
+                            Response
+                        </p>
+                        <pre
+                            class="text-xs whitespace-pre-wrap"
+                            x-text="script.response"
+                        ></pre>
+                    </div>
+                </template>
+
+                <template x-if="script.error">
+                    <p class="text-xs text-red-400" x-text="script.error"></p>
+                </template>
+            </section>
+        </div>
+
+        <script>
+            document.addEventListener("alpine:init", () => {
+                Alpine.data("selfCareUI", () => ({
+                    baseUrl: "http://localhost:5732",
+                    chat: {
+                        message:
+                            "Help me troubleshoot a slow database connection.",
+                        conversationId: "",
+                        loading: false,
+                        response: null,
+                        error: null,
+                    },
+                    logAnalysis: {
+                        logs: "ERROR: Connection timeout after 30 seconds\nWARNING: High memory usage detected",
+                        context: "PostgreSQL database server",
+                        loading: false,
+                        response: null,
+                        error: null,
+                    },
+                    script: {
+                        requirement:
+                            "Check disk space and clean temporary files",
+                        environment: "linux",
+                        language: "bash",
+                        loading: false,
+                        response: null,
+                        error: null,
+                    },
+                    payloadString(payload) {
+                        return JSON.stringify(payload, null, 2);
+                    },
+                    async callEndpoint(path, payload, state) {
+                        state.loading = true;
+                        state.error = null;
+                        state.response = null;
+                        try {
+                            const res = await fetch(`${this.baseUrl}${path}`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(payload),
+                            });
+                            const contentType =
+                                res.headers.get("content-type") || "";
+                            const rawText = await res.text();
+                            if (!res.ok) {
+                                throw new Error(rawText || "Request failed");
+                            }
+                            if (contentType.includes("application/json")) {
+                                const obj = JSON.parse(rawText);
+                                state.response =
+                                    obj.response ??
+                                    obj.analysis ??
+                                    obj.script ??
+                                    this.payloadString(obj);
+                            } else {
+                                state.response = rawText;
+                            }
+                        } catch (err) {
+                            state.error = err.message;
+                        } finally {
+                            state.loading = false;
+                        }
+                    },
+                    sendChat() {
+                        this.callEndpoint(
+                            "/api/chat",
+                            {
+                                message: this.chat.message,
+                                conversation_id:
+                                    this.chat.conversationId || null,
+                            },
+                            this.chat,
+                        );
+                    },
+                    sendLogAnalysis() {
+                        this.callEndpoint(
+                            "/api/analyze-logs",
+                            {
+                                logs: this.logAnalysis.logs,
+                                context: this.logAnalysis.context || null,
+                            },
+                            this.logAnalysis,
+                        );
+                    },
+                    sendScriptGeneration() {
+                        this.callEndpoint(
+                            "/api/generate-script",
+                            {
+                                requirement: this.script.requirement,
+                                environment: this.script.environment,
+                                language: this.script.language,
+                            },
+                            this.script,
+                        );
+                    },
+                }));
+            });
+        </script>
+    </body>
+</html>

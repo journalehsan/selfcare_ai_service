@@ -143,6 +143,36 @@ cargo fmt
 cargo clippy
 ```
 
+## Service Management Script
+
+Use `scripts/manage.sh` for common lifecycle tasks:
+
+```bash
+# Prepare the project (build + download the Mistral model)
+./scripts/manage.sh setup
+
+# Start/stop/restart the background service
+./scripts/manage.sh start
+./scripts/manage.sh status
+./scripts/manage.sh stop
+./scripts/manage.sh restart
+```
+
+The script downloads `mistralai/Mistral-7B-Instruct-v0.2` into `models/` using Hugging Face’s CLI (`hf` or `huggingface-cli`) and prefers the `.safetensors` weights. It first looks for a system-installed CLI, otherwise tries installing via `pipx`, and finally falls back to a project-local virtual environment in `.venv/hf_cli`. Ensure you have a valid Hugging Face token configured (via `hf auth login` / `huggingface-cli login` or `HUGGING_FACE_HUB_TOKEN`) before running `setup`.
+
+## API Showcase UI
+
+A lightweight `index.html` built with Alpine.js and Tailwind CSS is included in the repository root. It provides simple forms to call the `/api/chat`, `/api/analyze-logs`, and `/api/generate-script` endpoints.
+
+To preview it locally:
+
+```bash
+# Run the API (cargo run --release or ./scripts/manage.sh start), then
+python3 -m http.server 8000
+```
+
+Navigate to `http://localhost:8000/index.html` and update the “Base URL” field if your API is hosted elsewhere.
+
 ## Model Information
 
 This service uses the Mistral 7B model, a powerful open-source language model optimized for instruction following and reasoning tasks. The model is loaded using the Candle framework for efficient inference.
