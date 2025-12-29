@@ -1,9 +1,11 @@
-use actix_web::{web, HttpRequest, HttpResponse, Result, Responder};
-use actix_web_lab::sse;
+use actix_web::{web, HttpRequest, HttpResponse, Result};
+use futures_util::StreamExt;
+use bytes::Bytes;
 use uuid::Uuid;
 use validator::Validate;
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
+use tokio_stream::wrappers::ReceiverStream;
 
 use crate::models::{ChatRequest, ChatResponse, ErrorResponse};
 use crate::services::Complexity;
@@ -44,7 +46,11 @@ pub async fn chat(
             .headers()
             .get(actix_web::http::header::ACCEPT)
             .and_then(|v| v.to_str().ok())
-            .map(|value| value.contains("text/event-stream"))
+            .map(|value| {
+                value.contains("text/event-stream")
+                    || value.contains("application/x-ndjson")
+                    || value.contains("application/jsonl")
+            })
             .unwrap_or(false);
     let use_cache = !cache_bypass && rand::random::<f32>() < state.config.cache.cache_probability;
 
@@ -59,8 +65,10 @@ pub async fn chat(
                     return Ok(stream_text_response(
                         &http_req,
                         cached_response.response.clone(),
+                        model_name.clone(),
                         true,
                         cached_response.cache_source.clone(),
+                        conversation_id,
                     ));
                 }
                 return respond_chat(http_req, cached_response);
@@ -102,8 +110,10 @@ pub async fn chat(
                 return Ok(stream_text_response(
                     &http_req,
                     chat_response.response.clone(),
+                    model_name.clone(),
                     false,
                     None,
+                    conversation_id,
                 ));
             }
             respond_chat(http_req, chat_response)
@@ -136,36 +146,50 @@ fn respond_chat(http_req: HttpRequest, chat_response: ChatResponse) -> Result<Ht
 }
 
 fn stream_text_response(
-    http_req: &HttpRequest,
+    _http_req: &HttpRequest,
     response: String,
+    model_name: String,
     cache_hit: bool,
     cache_source: Option<String>,
+    conversation_id: Uuid,
 ) -> HttpResponse {
-    let (tx, rx) = mpsc::channel(32);
+    let (tx, rx) = mpsc::channel::<Bytes>(32);
     tokio::spawn(async move {
         let words: Vec<&str> = response.split_whitespace().collect();
-        for chunk in words.chunks(3) {
-            let data = chunk.join(" ");
-            let event = sse::Event::Data(sse::Data::new(data).event("token"));
-            if tx.send(event).await.is_err() {
+        for (index, word) in words.iter().enumerate() {
+            let token = if index == 0 {
+                (*word).to_string()
+            } else {
+                format!(" {}", word)
+            };
+            let payload = serde_json::json!({
+                "model": model_name,
+                "created_at": chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Nanos, true),
+                "response": token,
+                "done": false
+            });
+            let line = format!("{}\n", payload);
+            if tx.send(Bytes::from(line)).await.is_err() {
                 return;
             }
             sleep(Duration::from_millis(60)).await;
         }
 
-        let meta = serde_json::json!({
+        let done_payload = serde_json::json!({
+            "model": model_name,
+            "created_at": chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Nanos, true),
+            "response": "",
+            "done": true,
             "cache_hit": cache_hit,
             "cache_source": cache_source,
+            "conversation_id": conversation_id,
         });
-        let meta_event = match sse::Data::new_json(meta) {
-            Ok(data) => sse::Event::Data(data.event("meta")),
-            Err(_) => sse::Event::Data(sse::Data::new("")),
-        };
-        let _ = tx.send(meta_event).await;
-        let _ = tx.send(sse::Event::Data(sse::Data::new("").event("done"))).await;
+        let line = format!("{}\n", done_payload);
+        let _ = tx.send(Bytes::from(line)).await;
     });
 
-    sse::Sse::from_infallible_receiver(rx)
-        .with_keep_alive(Duration::from_secs(3))
-        .respond_to(http_req)
+    let stream = ReceiverStream::new(rx).map(Ok::<Bytes, std::io::Error>);
+    HttpResponse::Ok()
+        .insert_header((actix_web::http::header::CONTENT_TYPE, "application/x-ndjson"))
+        .streaming(stream)
 }
