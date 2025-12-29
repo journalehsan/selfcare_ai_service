@@ -70,10 +70,10 @@ impl Default for Config {
                 max_json_payload_size: 2_000_000, // 2MB
             },
             ai: AiConfig {
-                model_name: "mistralai/Mistral-7B-Instruct-v0.2".to_string(),
+                model_name: "TinyLlama/TinyLlama-1.1B-Chat-v1.0".to_string(),
                 model_path: None,
                 huggingface_cache_dir: None,
-                context_length: 4096,
+                context_length: 2048,
                 temperature: 0.7,
                 top_p: 0.9,
                 max_tokens: 2048,
