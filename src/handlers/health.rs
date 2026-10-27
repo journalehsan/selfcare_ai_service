@@ -1,16 +1,20 @@
 use actix_web::{web, HttpResponse, Result};
-use chrono::{Utc, Duration};
-use std::time::Instant;
+use std::sync::atomic::Ordering;
 
-use crate::models::{HealthResponse, ErrorResponse};
+use crate::models::{ErrorResponse, HealthResponse};
 use crate::AppState;
 
 pub async fn health_check(state: web::Data<AppState>) -> Result<HttpResponse> {
     let uptime = state.start_time.elapsed().as_secs();
-    let model_loaded = state.ai_model.read().await.is_ready();
+    let model_loaded = state.models_ready.load(Ordering::Acquire);
 
     let response = HealthResponse {
-        status: if model_loaded { "healthy" } else { "initializing" }.to_string(),
+        status: if model_loaded {
+            "healthy"
+        } else {
+            "initializing"
+        }
+        .to_string(),
         model_loaded,
         uptime_seconds: uptime,
         version: env!("CARGO_PKG_VERSION").to_string(),
@@ -20,7 +24,7 @@ pub async fn health_check(state: web::Data<AppState>) -> Result<HttpResponse> {
 }
 
 pub async fn ready_check(state: web::Data<AppState>) -> Result<HttpResponse> {
-    let model_loaded = state.ai_model.read().await.is_ready();
+    let model_loaded = state.models_ready.load(Ordering::Acquire);
 
     if model_loaded {
         Ok(HttpResponse::Ok().json(HealthResponse {
@@ -31,13 +35,11 @@ pub async fn ready_check(state: web::Data<AppState>) -> Result<HttpResponse> {
         }))
     } else {
         Ok(HttpResponse::ServiceUnavailable().json(ErrorResponse::new(
-            "Service not ready - AI model still loading"
+            "Local models are not ready; check model paths and service logs",
         )))
     }
 }
 
 pub async fn not_found() -> Result<HttpResponse> {
-    Ok(HttpResponse::NotFound().json(ErrorResponse::new(
-        "Endpoint not found"
-    )))
+    Ok(HttpResponse::NotFound().json(ErrorResponse::new("Endpoint not found")))
 }

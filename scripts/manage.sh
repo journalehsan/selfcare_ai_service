@@ -10,15 +10,22 @@ PID_FILE="$TARGET_DIR/selfcare_ai_service.pid"
 SQLITE_PATH="${SQLITE_PATH:-$DATA_DIR/ai_cache.sqlite}"
 
 MODEL_REPO="${MODEL_REPO:-TinyLlama/TinyLlama-1.1B-Chat-v1.0}"
-MODEL_DIR="${MODEL_DIR:-$MODELS_DIR/shared/tinyllama-1.1b}"
+MODEL_DIR="${MODEL_DIR:-${MODEL_PATH:-$MODELS_DIR/shared/tinyllama-1.1b}}"
+FALLBACK_MODEL_REPO="${FALLBACK_MODEL_REPO:-bartowski/Qwen2.5-7B-Instruct-GGUF}"
+FALLBACK_MODEL_FILE="${FALLBACK_MODEL_FILE:-Qwen2.5-7B-Instruct-Q4_K_M.gguf}"
+FALLBACK_MODEL_DIR="${FALLBACK_MODEL_DIR:-$MODELS_DIR/fallback/qwen2.5-7b-instruct}"
+FALLBACK_MODEL_PATH="${FALLBACK_MODEL_PATH:-$FALLBACK_MODEL_DIR/$FALLBACK_MODEL_FILE}"
+FALLBACK_TOKENIZER_REPO="${FALLBACK_TOKENIZER_REPO:-Qwen/Qwen2.5-7B-Instruct}"
+FALLBACK_TOKENIZER_PATH="${FALLBACK_TOKENIZER_PATH:-$FALLBACK_MODEL_DIR/tokenizer.json}"
+SERVICE_BIN="${SERVICE_BIN:-$TARGET_DIR/release/selfcare_ai_service}"
 HF_CACHE_DIR="${HF_CACHE_DIR:-$PROJECT_ROOT/.cache/huggingface}"
 HF_VENV_DIR="${HF_VENV_DIR:-$PROJECT_ROOT/.venv/hf_cli}"
 HF_CMD="${HF_CMD:-}"
 REDIS_CONTAINER="${REDIS_CONTAINER:-selfcare_redis}"
 REDIS_IMAGE="${REDIS_IMAGE:-redis:7-alpine}"
-REDIS_PORT="${REDIS_PORT:-6379}"
+REDIS_PORT="${REDIS_PORT:-6380}"
 REDIS_MAX_MEMORY_MB="${REDIS_MAX_MEMORY_MB:-2048}"
-REDIS_URL="${REDIS_URL:-redis://127.0.0.1:6379}"
+REDIS_URL="${REDIS_URL:-redis://127.0.0.1:$REDIS_PORT}"
 
 mkdir -p "$TARGET_DIR" "$LOGS_DIR" "$MODEL_DIR" "$HF_CACHE_DIR"
 mkdir -p "$DATA_DIR"
@@ -41,19 +48,32 @@ start_redis() {
         return
     fi
 
-    if docker ps --format '{{.Names}}' | grep -qx "$REDIS_CONTAINER"; then
-        log "Redis container already running: $REDIS_CONTAINER"
-        return
-    fi
-
     if docker ps -a --format '{{.Names}}' | grep -qx "$REDIS_CONTAINER"; then
+        local existing_port
+        existing_port="$(docker inspect --format '{{range index .HostConfig.PortBindings "6379/tcp"}}{{println .HostPort}}{{end}}' "$REDIS_CONTAINER")"
+        if [[ "$existing_port" != "$REDIS_PORT" ]]; then
+            log "Redis container $REDIS_CONTAINER publishes port ${existing_port:-none}, but REDIS_PORT=$REDIS_PORT."
+            log "Use REDIS_PORT=${existing_port:-6379} to keep its mapping, or choose a new REDIS_CONTAINER name to create one on port $REDIS_PORT."
+            return 1
+        fi
+
+        if docker ps --format '{{.Names}}' | grep -qx "$REDIS_CONTAINER"; then
+            log "Redis container already running: $REDIS_CONTAINER"
+            return
+        fi
+
         log "Starting existing Redis container: $REDIS_CONTAINER"
         docker start "$REDIS_CONTAINER" >/dev/null
         return
     fi
 
+    if ! docker image inspect "$REDIS_IMAGE" >/dev/null 2>&1; then
+        log "Redis image $REDIS_IMAGE is not available locally. Load it with docker load before starting in the offline VM."
+        return 1
+    fi
+
     log "Starting Redis container: $REDIS_CONTAINER"
-    docker run -d \
+    docker run -d --pull=never \
         --name "$REDIS_CONTAINER" \
         -p "$REDIS_PORT:6379" \
         "$REDIS_IMAGE" \
@@ -196,10 +216,10 @@ PY
             return
         fi
 
-        log "Model directory is incomplete; re-downloading to $target_dir"
-        rm -rf "$target_dir"
-        mkdir -p "$target_dir"
+        log "Model directory is incomplete; resuming download to $target_dir"
     fi
+
+    mkdir -p "$target_dir"
 
     install_huggingface_cli
 
@@ -245,15 +265,56 @@ PY
 build_project() {
     require_cmd cargo
     log "Fetching dependencies..."
-    cargo fetch --locked
+    cargo fetch
     log "Building release binary..."
     cargo build --release
+}
+
+download_hub_file() {
+    local repo_id="$1"
+    local filename="$2"
+    local destination="$3"
+    if [[ -s "$destination" ]]; then
+        log "File already present at $destination"
+        return
+    fi
+
+    install_huggingface_cli
+    local download_dir
+    download_dir="$(dirname "$destination")"
+    mkdir -p "$download_dir"
+    log "Downloading $repo_id/$filename into $download_dir"
+    HF_HOME="$HF_CACHE_DIR" "$HF_CMD" download "$repo_id" "$filename" --local-dir "$download_dir"
+    if [[ "$download_dir/$filename" != "$destination" ]]; then
+        mv "$download_dir/$filename" "$destination"
+    fi
 }
 
 setup() {
     build_project
     download_model "$MODEL_REPO" "$MODEL_DIR"
-    log "Setup complete. Configure MODEL_PATH=$MODEL_DIR if you override defaults."
+    download_hub_file "$FALLBACK_MODEL_REPO" "$FALLBACK_MODEL_FILE" "$FALLBACK_MODEL_PATH"
+    download_hub_file "$FALLBACK_TOKENIZER_REPO" tokenizer.json "$FALLBACK_TOKENIZER_PATH"
+    require_cmd docker
+    log "Preparing Redis image for offline use..."
+    docker pull "$REDIS_IMAGE"
+    log "Setup complete. Copy the release binary, models, and Redis image to the offline VM."
+}
+
+require_local_models() {
+    local file
+    for file in "$MODEL_DIR/config.json" "$MODEL_DIR/tokenizer.json" \
+        "$FALLBACK_MODEL_PATH" "$FALLBACK_TOKENIZER_PATH"; do
+        if [[ ! -s "$file" ]]; then
+            log "Required local model file is missing or empty: $file"
+            log "Run setup on a connected machine and copy the models to this VM."
+            return 1
+        fi
+    done
+    if [[ ! -s "$MODEL_DIR/model.safetensors" && ! -s "$MODEL_DIR/model.safetensors.index.json" ]]; then
+        log "TinyLlama weights are missing from $MODEL_DIR. Copy its safetensors (including every shard) to the VM."
+        return 1
+    fi
 }
 
 start() {
@@ -266,14 +327,21 @@ start() {
         fi
     fi
 
-    require_cmd cargo
+    if [[ ! -x "$SERVICE_BIN" ]]; then
+        log "Release binary not found or not executable: $SERVICE_BIN"
+        log "Build with setup on a connected machine, then copy the binary to this VM."
+        return 1
+    fi
+    require_local_models
     start_redis
     log "Starting SelfCare AI Service..."
     (
         cd "$PROJECT_ROOT"
         export MODEL_PATH="$MODEL_DIR"
-        export HUGGINGFACE_CACHE_DIR="$HF_CACHE_DIR"
-        nohup cargo run --release >"$LOGS_DIR/service.log" 2>&1 &
+        export FALLBACK_MODEL_PATH FALLBACK_TOKENIZER_PATH
+        export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+        export REDIS_URL
+        nohup "$SERVICE_BIN" >"$LOGS_DIR/service.log" 2>&1 &
         echo $! >"$PID_FILE"
     )
     log "Service started with PID $(cat "$PID_FILE"). Logs: $LOGS_DIR/service.log"
@@ -321,7 +389,7 @@ usage() {
 Usage: $(basename "$0") <command>
 
 Commands:
-  setup    Fetch dependencies, build the binary, and download the TinyLlama model
+  setup    Online preparation: build, download TinyLlama + Qwen Q4_K_M, and pull Redis
   start    Start the service in the background (logs written to $LOGS_DIR/service.log)
   stop     Stop the background service
   restart  Restart the background service

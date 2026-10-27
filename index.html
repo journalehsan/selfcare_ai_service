@@ -1,381 +1,102 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>SelfCare AI Service – API Showcase</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <script
-            defer
-            src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
-        ></script>
-    </head>
-    <body
-        class="bg-slate-950 text-slate-100 min-h-screen"
-        x-data="selfCareUI()"
-    >
-        <div class="max-w-6xl mx-auto px-4 py-10 space-y-10">
-            <header class="space-y-2 text-center">
-                <p class="text-xs uppercase tracking-[0.3em] text-emerald-300">
-                    SelfCare AI Service
-                </p>
-                <h1 class="text-4xl font-semibold">API Showcase</h1>
-                <p class="text-slate-400 text-lg max-w-2xl mx-auto">
-                    Quickly interact with the chat, log analysis, and script
-                    generation endpoints. Adjust the base URL to target a remote
-                    instance.
-                </p>
-                <div
-                    class="mt-6 flex flex-col sm:flex-row gap-3 items-center justify-center"
-                >
-                    <label
-                        class="text-sm uppercase tracking-widest text-slate-400"
-                        >Base URL</label
-                    >
-                    <input
-                        class="w-full sm:w-96 rounded-md bg-slate-900 border border-slate-700 px-4 py-2 text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                        type="text"
-                        x-model="baseUrl"
-                    />
-                </div>
-            </header>
-
-            <section class="grid gap-6 md:grid-cols-2">
-                <div
-                    class="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 shadow-xl shadow-slate-950/40 rounded-2xl p-6 space-y-4"
-                >
-                    <div class="flex items-center gap-2">
-                        <span
-                            class="text-xs uppercase tracking-[0.3em] text-emerald-300"
-                            >Endpoint</span
-                        >
-                        <span
-                            class="px-2 py-0.5 text-xs rounded-full bg-emerald-900/30 text-emerald-200"
-                            >POST /api/chat</span
-                        >
-                    </div>
-                    <h2 class="text-2xl font-semibold">AI Chat</h2>
-                    <p class="text-slate-400 text-sm">
-                        Send a message to the model and get a response.
-                        Optionally include a conversation ID.
-                    </p>
-
-                    <label
-                        class="text-xs uppercase text-slate-400 tracking-widest"
-                        >Message</label
-                    >
-                    <textarea
-                        class="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
-                        rows="3"
-                        x-model="chat.message"
-                    ></textarea>
-
-                    <label
-                        class="text-xs uppercase text-slate-400 tracking-widest"
-                        >Conversation ID (optional)</label
-                    >
-                    <input
-                        type="text"
-                        class="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
-                        x-model="chat.conversationId"
-                    />
-
-                    <button
-                        class="w-full bg-emerald-500 text-slate-950 font-semibold py-2 rounded-md hover:bg-emerald-400 transition disabled:opacity-40"
-                        :disabled="chat.loading"
-                        @click="sendChat"
-                    >
-                        <template x-if="!chat.loading">Send Message</template>
-                        <template x-if="chat.loading">Sending…</template>
-                    </button>
-
-                    <template x-if="chat.response">
-                        <div
-                            class="bg-slate-950/60 border border-emerald-500/40 rounded-md p-3"
-                        >
-                            <p
-                                class="text-xs uppercase tracking-widest text-emerald-300 mb-2"
-                            >
-                                Response
-                            </p>
-                            <pre
-                                class="text-xs whitespace-pre-wrap"
-                                x-text="chat.response"
-                            ></pre>
-                        </div>
-                    </template>
-
-                    <template x-if="chat.error">
-                        <p class="text-xs text-red-400" x-text="chat.error"></p>
-                    </template>
-                </div>
-
-                <div
-                    class="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 shadow-xl shadow-slate-950/40 rounded-2xl p-6 space-y-4"
-                >
-                    <div class="flex items-center gap-2">
-                        <span
-                            class="text-xs uppercase tracking-[0.3em] text-emerald-300"
-                            >Endpoint</span
-                        >
-                        <span
-                            class="px-2 py-0.5 text-xs rounded-full bg-emerald-900/30 text-emerald-200"
-                            >POST /api/analyze-logs</span
-                        >
-                    </div>
-                    <h2 class="text-2xl font-semibold">Log Analysis</h2>
-                    <p class="text-slate-400 text-sm">
-                        Paste your logs and optional context to get insights.
-                    </p>
-
-                    <label
-                        class="text-xs uppercase text-slate-400 tracking-widest"
-                        >Logs</label
-                    >
-                    <textarea
-                        class="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
-                        rows="5"
-                        x-model="logAnalysis.logs"
-                    ></textarea>
-
-                    <label
-                        class="text-xs uppercase text-slate-400 tracking-widest"
-                        >Context (optional)</label
-                    >
-                    <input
-                        type="text"
-                        class="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
-                        x-model="logAnalysis.context"
-                    />
-
-                    <button
-                        class="w-full bg-emerald-500 text-slate-950 font-semibold py-2 rounded-md hover:bg-emerald-400 transition disabled:opacity-40"
-                        :disabled="logAnalysis.loading"
-                        @click="sendLogAnalysis"
-                    >
-                        <template x-if="!logAnalysis.loading"
-                            >Analyze Logs</template
-                        >
-                        <template x-if="logAnalysis.loading"
-                            >Analyzing…</template
-                        >
-                    </button>
-
-                    <template x-if="logAnalysis.response">
-                        <div
-                            class="bg-slate-950/60 border border-emerald-500/40 rounded-md p-3"
-                        >
-                            <p
-                                class="text-xs uppercase tracking-widest text-emerald-300 mb-2"
-                            >
-                                Response
-                            </p>
-                            <pre
-                                class="text-xs whitespace-pre-wrap"
-                                x-text="logAnalysis.response"
-                            ></pre>
-                        </div>
-                    </template>
-
-                    <template x-if="logAnalysis.error">
-                        <p
-                            class="text-xs text-red-400"
-                            x-text="logAnalysis.error"
-                        ></p>
-                    </template>
-                </div>
-            </section>
-
-            <section
-                class="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 shadow-xl shadow-slate-950/40 rounded-2xl p-6 space-y-4"
-            >
-                <div class="flex items-center gap-2">
-                    <span
-                        class="text-xs uppercase tracking-[0.3em] text-emerald-300"
-                        >Endpoint</span
-                    >
-                    <span
-                        class="px-2 py-0.5 text-xs rounded-full bg-emerald-900/30 text-emerald-200"
-                        >POST /api/generate-script</span
-                    >
-                </div>
-                <h2 class="text-2xl font-semibold">Script Generation</h2>
-                <p class="text-slate-400 text-sm">
-                    Describe your requirement to generate a shell, Python, or
-                    PowerShell script.
-                </p>
-
-                <div class="grid md:grid-cols-3 gap-4">
-                    <div>
-                        <label
-                            class="text-xs uppercase text-slate-400 tracking-widest"
-                            >Environment</label
-                        >
-                        <select
-                            class="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
-                            x-model="script.environment"
-                        >
-                            <option value="linux">Linux</option>
-                            <option value="windows">Windows</option>
-                            <option value="macos">macOS</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label
-                            class="text-xs uppercase text-slate-400 tracking-widest"
-                            >Language</label
-                        >
-                        <select
-                            class="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
-                            x-model="script.language"
-                        >
-                            <option value="bash">Bash</option>
-                            <option value="python">Python</option>
-                            <option value="powershell">PowerShell</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label
-                            class="text-xs uppercase text-slate-400 tracking-widest"
-                            >Requirement</label
-                        >
-                        <input
-                            type="text"
-                            class="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
-                            placeholder="e.g. clean temp files"
-                            x-model="script.requirement"
-                        />
-                    </div>
-                </div>
-
-                <button
-                    class="w-full bg-emerald-500 text-slate-950 font-semibold py-2 rounded-md hover:bg-emerald-400 transition disabled:opacity-40"
-                    :disabled="script.loading"
-                    @click="sendScriptGeneration"
-                >
-                    <template x-if="!script.loading">Generate Script</template>
-                    <template x-if="script.loading">Generating…</template>
-                </button>
-
-                <template x-if="script.response">
-                    <div
-                        class="bg-slate-950/60 border border-emerald-500/40 rounded-md p-3"
-                    >
-                        <p
-                            class="text-xs uppercase tracking-widest text-emerald-300 mb-2"
-                        >
-                            Response
-                        </p>
-                        <pre
-                            class="text-xs whitespace-pre-wrap"
-                            x-text="script.response"
-                        ></pre>
-                    </div>
-                </template>
-
-                <template x-if="script.error">
-                    <p class="text-xs text-red-400" x-text="script.error"></p>
-                </template>
-            </section>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>SelfCare · Your workspace for clearer thinking</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/chat.css">
+  <script defer src="assets/vendor/marked.umd.js"></script>
+  <script defer src="assets/vendor/purify.min.js"></script>
+  <script defer src="assets/chat.js"></script>
+  <script defer src="assets/vendor/alpine.min.js"></script>
+</head>
+<body x-data="selfCareChat" @keydown.escape.window="sidebarOpen = false; if (settingsOpen) closeSettings()" @keydown.ctrl.k.window.prevent="newChat()" @keydown.meta.k.window.prevent="newChat()">
+  <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-1 1v-7.5A8.5 8.5 0 1 1 20 11.5Z"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7M12 5v14"/></symbol>
+    <symbol id="i-paperclip" viewBox="0 0 24 24"><path d="m8 13 7-7a3 3 0 0 1 4 4L9 20a5 5 0 0 1-7-7L13 2a2 2 0 0 1 3 3L6 15a1 1 0 0 0 2 2l9-9"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H5v18h14V8ZM14 3v6h5M8 13h8M8 17h6"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5ZM20 2v4M18 4h4"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6M16 6l6 6-6 6M14 3l-4 18"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V3H3v13h5"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M5 7a8 8 0 0 1 13-2l2 2M4 17l2 2a8 8 0 0 0 13-2"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/></symbol>
+  </svg>
+  <noscript><div class="no-script">Enable JavaScript to use SelfCare chat.</div></noscript>
+  <div class="app-shell" x-cloak>
+    <button class="sidebar-scrim" x-show="sidebarOpen" @click="sidebarOpen = false" aria-label="Close navigation"></button>
+    <aside class="sidebar" :class="{'is-open': sidebarOpen}" aria-label="Conversation navigation">
+      <a class="brand" href="./" @click.prevent="newChat()"><span class="brand-mark"><svg><use href="#i-spark"/></svg></span><span>SelfCare<span class="brand-ai">AI WORKSPACE</span></span></a>
+      <button class="new-chat" @click="newChat()" :disabled="busy || reading"><svg><use href="#i-plus"/></svg> New conversation <kbd>⌘ K</kbd></button>
+      <div class="history-label">YOUR CONVERSATIONS <span x-text="chats.length"></span></div>
+      <label class="history-search" x-show="chats.length > 4"><svg><use href="#i-search"/></svg><input type="search" x-model="search" placeholder="Find a conversation" aria-label="Find a conversation"></label>
+      <nav class="chat-history" aria-label="Conversations">
+        <div class="history-empty" x-show="!chats.length"><svg><use href="#i-chat"/></svg><p>A little space for big ideas.</p><span>Your conversations will appear here.</span></div>
+        <template x-for="chat in filteredChats" :key="chat.id">
+          <div class="history-row" :class="{'is-active': activeId === chat.id}">
+            <button class="history-item" @click="selectChat(chat.id)" :disabled="busy || reading" :aria-current="activeId === chat.id ? 'page' : null"><svg><use href="#i-chat"/></svg><span x-text="chat.title"></span></button>
+            <button class="history-delete icon-button" @click="deleteChat(chat.id)" :disabled="busy || reading" :aria-label="'Delete ' + chat.title"><svg><use href="#i-trash"/></svg></button>
+          </div>
+        </template>
+        <p class="history-empty" x-show="search && !filteredChats.length">No matching conversations.</p>
+      </nav>
+      <div class="sidebar-bottom"><div class="private-note"><span class="small-lock">●</span><div><strong>Your office workspace</strong><p>Conversations stay in this tab.<br>Responses run on your office server.</p></div></div><button class="settings-button" @click="openSettings()"><svg><use href="#i-settings"/></svg> Connection settings <span class="connection-dot" :class="health"></span></button><div class="workspace-user"><span class="user-monogram">SC</span><div><strong>SelfCare team</strong><span>Local AI, at your service</span></div><span class="workspace-badge">WORKSPACE</span></div></div>
+    </aside>
+    <main class="main-panel">
+      <header class="topbar"><div class="topbar-leading"><button class="icon-button mobile-menu" @click="sidebarOpen = true" aria-label="Open navigation"><svg><use href="#i-menu"/></svg></button><span class="topbar-title" x-text="activeChat?.title || 'A fresh conversation'"></span><span class="topbar-divider"></span><label class="model-control"><select x-model="model" :disabled="busy" aria-label="Response model"><option value="auto">Everyday · Auto</option><option value="Qwen2.5-7B-Instruct-Q4_K_M">Thoughtful · Qwen</option></select><svg><use href="#i-chevron"/></svg></label></div><div class="topbar-actions"><span class="service-status" :class="health" :title="healthDetail"><span class="connection-dot" :class="health"></span><span x-text="health === 'ready' ? 'Office server connected' : health === 'checking' ? 'Connecting…' : 'Server unavailable'"></span></span><button class="icon-button" @click="exportChat()" :disabled="!activeChat?.messages.length" aria-label="Download conversation" title="Download conversation"><svg><use href="#i-download"/></svg></button></div></header>
+      <div id="conversation-scroll" class="conversation-scroll" x-ref="scroll" @scroll="trackScroll()">
+        <section class="welcome" x-show="!activeChat?.messages.length">
+          <div class="welcome-kicker"><span></span> A LITTLE CLARITY GOES A LONG WAY</div>
+          <div class="welcome-emblem"><svg><use href="#i-spark"/></svg></div>
+          <h1>A clearer thought.<br><span>A better starting point.</span></h1>
+          <p>Your space to ask, explore, and turn long reads into<br class="desktop-break"> something you can work with.</p>
+          <div class="starter-grid">
+            <button class="starter-card" @click="chooseStarter('summarize')"><span class="starter-icon mint"><svg><use href="#i-file"/></svg></span><strong>Make a long story short</strong><span>Paste your text. Get the key points.</span><span class="starter-arrow">↗</span></button>
+            <button class="starter-card" @click="chooseStarter('explain')"><span class="starter-icon peach"><svg><use href="#i-chat"/></svg></span><strong>Make sense of something</strong><span>A question, an idea, a tricky topic.</span><span class="starter-arrow">↗</span></button>
+            <button class="starter-card" @click="chooseStarter('code')"><span class="starter-icon lilac"><svg><use href="#i-code"/></svg></span><strong>Work through a problem</strong><span>Explore code, logs, or a next step.</span><span class="starter-arrow">↗</span></button>
+          </div>
+        </section>
+        <section class="messages" x-show="activeChat?.messages.length" aria-label="Conversation messages" aria-live="polite" aria-relevant="additions">
+          <template x-for="message in activeChat?.messages || []" :key="message.id">
+            <article class="message" :class="message.role">
+              <div class="message-avatar" :class="message.role"><template x-if="message.role === 'assistant'"><svg><use href="#i-spark"/></svg></template><span x-show="message.role === 'user'">You</span></div>
+              <div class="message-content"><div class="message-byline"><strong x-text="message.role === 'assistant' ? 'SelfCare' : 'You'"></strong><span x-text="timeLabel(message.created)"></span><span class="summary-badge" x-show="message.summary">SUMMARY</span></div>
+                <template x-if="message.role === 'user'"><div><div class="user-message" dir="auto" x-text="message.preview || message.text"></div><div class="source-note" x-show="message.sourceName"><svg><use href="#i-file"/></svg><span x-text="message.sourceName"></span><span x-text="formatNumber(message.sourceLength) + ' characters'"></span></div><details class="source-details" x-show="message.preview"><summary>View full submitted text</summary><div dir="auto" x-text="message.text"></div></details></div></template>
+                <template x-if="message.role === 'assistant'"><div><div class="markdown" dir="auto" x-html="renderMarkdown(message.text)"></div><p class="response-note" x-show="message.finishReason === 'length'">This reply reached the model’s response limit. Ask it to continue for more detail.</p><p class="response-note" x-show="message.contextNote" x-text="message.contextNote"></p><div class="message-actions"><button @click="copyMessage(message)" :aria-label="'Copy response'" :title="copiedId === message.id ? 'Copied' : 'Copy response'"><svg><use :href="copiedId === message.id ? '#i-check' : '#i-copy'"/></svg><span x-text="copiedId === message.id ? 'Copied' : 'Copy'"></span></button><button x-show="isLastAssistant(message.id)" @click="retry()" :disabled="busy || reading"><svg><use href="#i-refresh"/></svg><span>Try again</span></button><span class="model-note" x-text="message.model?.includes('Qwen') ? 'Qwen · local' : 'TinyLlama · local'"></span></div></div></template>
+              </div>
+            </article>
+          </template>
+          <div class="working-message" x-show="busy" role="status"><span class="thinking-orb"><svg><use href="#i-spark"/></svg></span><div><strong x-text="progress || 'Thinking it through…'"></strong><span x-text="elapsed >= 10 ? 'Local models can take a moment. ' + elapsed + 's elapsed.' : 'Putting a little thought into your answer.'"></span></div><span class="thinking-dots"><i></i><i></i><i></i></span></div>
+        </section>
+      </div>
+      <div class="composer-region" @dragover.prevent="dragging = true" @dragleave.prevent="if (!$event.currentTarget.contains($event.relatedTarget)) dragging = false" @drop.prevent="dragging = false; attachFiles($event.dataTransfer.files)" :class="{'is-dragging': dragging}">
+        <button class="jump-bottom" x-show="!atBottom && activeChat?.messages.length" @click="scrollBottom(true)">↓ Back to latest</button>
+        <div class="composer-width"><div class="notice error-notice" x-show="error" role="alert"><div><strong>Let’s try that again.</strong><span x-text="error"></span></div><button class="text-button" x-show="canRetry && !busy" @click="retry()">Retry</button><button class="icon-button" @click="error = ''" aria-label="Dismiss error"><svg><use href="#i-close"/></svg></button></div><div class="notice" x-show="notice" role="status"><span x-text="notice"></span><button class="icon-button" @click="notice = ''" aria-label="Dismiss notice"><svg><use href="#i-close"/></svg></button></div>
+          <div class="mode-row"><div class="mode-switch" aria-label="Message mode"><button :class="{'selected': mode === 'chat'}" :aria-pressed="mode === 'chat'" @click="mode = 'chat'" :disabled="busy"><svg><use href="#i-chat"/></svg> Chat</button><button :class="{'selected': mode === 'summary'}" :aria-pressed="mode === 'summary'" @click="mode = 'summary'" :disabled="busy"><svg><use href="#i-file"/></svg> Summarize</button></div><span class="mode-hint" x-text="longDraft ? 'Long text detected. We’ll summarize it in sections.' : mode === 'summary' ? 'The essentials, without the long read.' : 'A question is a good place to start.'"></span></div>
+          <form class="composer" @submit.prevent="send()" :class="{'has-focus': composerFocused}">
+            <div class="attachment" x-show="attachment"><span class="attachment-icon"><svg><use href="#i-file"/></svg></span><div><strong x-text="attachment?.name"></strong><span x-text="attachment ? formatNumber(attachment.text.length) + ' characters · ready to summarize' : ''"></span></div><button type="button" class="icon-button" @click="attachment = null" :disabled="busy" aria-label="Remove attachment"><svg><use href="#i-close"/></svg></button></div>
+            <div class="reading-file" x-show="reading" role="status">Reading your document locally…</div>
+            <label class="visually-hidden" for="message-input">Your message or text to summarize</label><textarea id="message-input" aria-describedby="composer-help" x-ref="composer" x-model="draft" @input="resizeComposer()" @focus="composerFocused = true" @blur="composerFocused = false" @keydown.enter="if (!$event.shiftKey && !$event.isComposing && $event.keyCode !== 229) { $event.preventDefault(); send(); }" :placeholder="attachment ? 'Add instructions, or send to summarize this document…' : mode === 'summary' ? 'Paste your text here. A report, meeting notes, an article…' : 'Ask anything, or paste something to work through…'" :disabled="busy || reading" rows="2" dir="auto"></textarea>
+            <div class="composer-toolbar"><div class="composer-tools"><button type="button" class="icon-button attach-button" @click="$refs.file.click()" :disabled="busy || reading" aria-label="Attach a document" title="Attach TXT, DOCX, PDF, Markdown or a text file"><svg><use href="#i-paperclip"/></svg></button><input type="file" class="visually-hidden" x-ref="file" accept=".txt,.md,.markdown,.log,.csv,.json,.docx,.pdf" @change="attachFiles($event.target.files); $event.target.value = ''"><span class="attach-hint">Text or a document. Your choice.</span><span class="char-count" x-show="draft.length > 1000" x-text="formatNumber(draft.length) + ' characters'"></span></div><button class="stop-button" x-show="busy" type="button" @click="stop()" aria-label="Stop waiting for response"><span></span> Stop</button><button class="send-button" x-show="!busy" type="submit" :disabled="(!draft.trim() && !attachment) || reading" :aria-label="mode === 'summary' ? 'Summarize text' : 'Send message'"><svg><use href="#i-arrow"/></svg></button></div>
+          </form>
+          <div class="composer-footer"><span id="composer-help">Up to 200,000 characters. AI can make mistakes; review important details.</span><span class="keyboard-hint">Enter to send <span>·</span> Shift + Enter for a new line</span></div>
         </div>
-
-        <script>
-            document.addEventListener("alpine:init", () => {
-                Alpine.data("selfCareUI", () => ({
-                    baseUrl: "http://localhost:5732",
-                    chat: {
-                        message:
-                            "Help me troubleshoot a slow database connection.",
-                        conversationId: "",
-                        loading: false,
-                        response: null,
-                        error: null,
-                    },
-                    logAnalysis: {
-                        logs: "ERROR: Connection timeout after 30 seconds\nWARNING: High memory usage detected",
-                        context: "PostgreSQL database server",
-                        loading: false,
-                        response: null,
-                        error: null,
-                    },
-                    script: {
-                        requirement:
-                            "Check disk space and clean temporary files",
-                        environment: "linux",
-                        language: "bash",
-                        loading: false,
-                        response: null,
-                        error: null,
-                    },
-                    payloadString(payload) {
-                        return JSON.stringify(payload, null, 2);
-                    },
-                    async callEndpoint(path, payload, state) {
-                        state.loading = true;
-                        state.error = null;
-                        state.response = null;
-                        try {
-                            const res = await fetch(`${this.baseUrl}${path}`, {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify(payload),
-                            });
-                            const contentType =
-                                res.headers.get("content-type") || "";
-                            const rawText = await res.text();
-                            if (!res.ok) {
-                                throw new Error(rawText || "Request failed");
-                            }
-                            if (contentType.includes("application/json")) {
-                                const obj = JSON.parse(rawText);
-                                state.response =
-                                    obj.response ??
-                                    obj.analysis ??
-                                    obj.script ??
-                                    this.payloadString(obj);
-                            } else {
-                                state.response = rawText;
-                            }
-                        } catch (err) {
-                            state.error = err.message;
-                        } finally {
-                            state.loading = false;
-                        }
-                    },
-                    sendChat() {
-                        this.callEndpoint(
-                            "/api/chat",
-                            {
-                                message: this.chat.message,
-                                conversation_id:
-                                    this.chat.conversationId || null,
-                            },
-                            this.chat,
-                        );
-                    },
-                    sendLogAnalysis() {
-                        this.callEndpoint(
-                            "/api/analyze-logs",
-                            {
-                                logs: this.logAnalysis.logs,
-                                context: this.logAnalysis.context || null,
-                            },
-                            this.logAnalysis,
-                        );
-                    },
-                    sendScriptGeneration() {
-                        this.callEndpoint(
-                            "/api/generate-script",
-                            {
-                                requirement: this.script.requirement,
-                                environment: this.script.environment,
-                                language: this.script.language,
-                            },
-                            this.script,
-                        );
-                    },
-                }));
-            });
-        </script>
-    </body>
+        <div class="drop-overlay" x-show="dragging"><svg><use href="#i-file"/></svg><strong>Drop a document here</strong><span>TXT, DOCX, PDF and other text files</span></div>
+      </div>
+    </main>
+    <div class="modal-backdrop" x-show="settingsOpen" @click.self="closeSettings()" x-transition.opacity>
+      <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" @keydown.tab="trapFocus($event)"><div class="modal-heading"><span class="modal-icon"><svg><use href="#i-settings"/></svg></span><button class="icon-button" @click="closeSettings()" aria-label="Close settings"><svg><use href="#i-close"/></svg></button></div><h2 id="settings-title">Your office connection</h2><p>Connect to the SelfCare service on your local network. All browser libraries are included with this page.</p><form @submit.prevent="saveSettings()"><label for="server-url">Service address</label><input id="server-url" x-ref="serverUrl" type="url" x-model="settingsUrl" required placeholder="http://10.227.36.102:5732"><span class="field-help">Use the server origin without <code>/api</code>. Leave the current page’s address to use its proxy.</span><div class="connection-result" :class="health"><span class="connection-dot" :class="health"></span><span x-text="healthDetail"></span></div><p class="settings-error" role="alert" x-show="settingsError" x-text="settingsError"></p><div class="modal-actions"><button type="button" class="secondary-button" @click="closeSettings()">Cancel</button><button type="submit" class="primary-button" :disabled="busy">Save &amp; connect</button></div></form><div class="settings-footnote"><strong>A fresh start when you close the tab.</strong><span>Chat history and connection changes are kept in memory for this tab. The service may cache requests and responses on the office server.</span></div></section>
+    </div>
+  </div>
+</body>
 </html>

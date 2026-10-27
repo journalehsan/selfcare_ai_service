@@ -1,9 +1,9 @@
 use actix_web::{web, HttpResponse, Result};
-use validator::Validate;
 use chrono::Utc;
+use validator::Validate;
 
 use crate::models::{
-    ScriptGenerationRequest, ScriptResponse, ErrorResponse, Environment, ScriptLanguage
+    Environment, ErrorResponse, ScriptGenerationRequest, ScriptLanguage, ScriptResponse,
 };
 use crate::AppState;
 
@@ -15,7 +15,7 @@ pub async fn generate_script(
     if let Err(e) = req.validate() {
         return Ok(HttpResponse::BadRequest().json(ErrorResponse::with_details(
             "Invalid request",
-            format!("Validation error: {}", e)
+            format!("Validation error: {}", e),
         )));
     }
 
@@ -32,21 +32,24 @@ pub async fn generate_script(
         ScriptLanguage::Powershell => "powershell",
     };
 
-    // Get mutable reference to AI model
-    let mut ai_model = state.ai_model.write().await;
-
     // Process the script generation request
-    match ai_model.generate_script(&req.requirement, environment_str, language_str).await {
+    match state
+        .ai_service
+        .generate_script(&req.requirement, environment_str, language_str)
+        .await
+    {
         Ok(script_content) => {
             // Parse the response to extract script, explanation, and warnings
             let parts: Vec<&str> = script_content.split("\n\n").collect();
 
-            let script = parts.get(0)
+            let script = parts
+                .get(0)
                 .unwrap_or(&"# No script generated")
                 .trim_start_matches("Script:\n")
                 .to_string();
 
-            let explanation = parts.get(1)
+            let explanation = parts
+                .get(1)
                 .and_then(|p| p.strip_prefix("Explanation:"))
                 .unwrap_or("Script generated based on requirements")
                 .trim()
@@ -71,10 +74,12 @@ pub async fn generate_script(
         }
         Err(e) => {
             tracing::error!("Script generation error: {:?}", e);
-            Ok(HttpResponse::InternalServerError().json(ErrorResponse::with_details(
-                "Failed to generate script",
-                e.to_string()
-            )))
+            Ok(
+                HttpResponse::InternalServerError().json(ErrorResponse::with_details(
+                    "Failed to generate script",
+                    e.to_string(),
+                )),
+            )
         }
     }
 }

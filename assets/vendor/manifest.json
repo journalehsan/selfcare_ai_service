@@ -1,0 +1,79 @@
+{
+  "alpine.LICENSE": {
+    "bytes": 1092,
+    "package": "alpinejs",
+    "sha256": "08b7502da6e7aa1d0bbdc97d220fbf669b9366c61bd0f072238283c89bc4773a",
+    "source": "https://cdn.jsdelivr.net/gh/alpinejs/alpine@v3.17.5/LICENSE.md",
+    "version": "3.17.5"
+  },
+  "alpine.min.js": {
+    "bytes": 55935,
+    "package": "alpinejs",
+    "sha256": "b4036e9e9ac22fa6f6ae1ba292e015e1f3e9c85d0d79e73e4c8eb9bb139b522e",
+    "source": "https://cdn.jsdelivr.net/npm/alpinejs@3.17.5/dist/cdn.min.js",
+    "version": "3.17.5"
+  },
+  "dompurify.LICENSE": {
+    "bytes": 11358,
+    "package": "dompurify",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "source": "https://cdn.jsdelivr.net/npm/dompurify@3.4.17/LICENSE",
+    "version": "3.4.17"
+  },
+  "mammoth.LICENSE": {
+    "bytes": 1307,
+    "package": "mammoth",
+    "sha256": "6663bbd049205d38a496ccacb412a151980b444627d38de218b3b809aef330f1",
+    "source": "https://cdn.jsdelivr.net/npm/mammoth@1.13.0/LICENSE",
+    "version": "1.13.0"
+  },
+  "mammoth.browser.min.js": {
+    "bytes": 405060,
+    "package": "mammoth",
+    "sha256": "92914a3708cfdf1e62cb553d1856a7fedab21da83d8ee82845de2f897b368cab",
+    "source": "https://cdn.jsdelivr.net/npm/mammoth@1.13.0/mammoth.browser.min.js",
+    "version": "1.13.0"
+  },
+  "marked.LICENSE": {
+    "bytes": 2942,
+    "package": "marked",
+    "sha256": "8e3a3f82f59a60958f56ca08f445647c32a4733dc7ca6c2c46f6eb898471ab9c",
+    "source": "https://cdn.jsdelivr.net/npm/marked@18.1.2/LICENSE",
+    "version": "18.1.2"
+  },
+  "marked.umd.js": {
+    "bytes": 49207,
+    "package": "marked",
+    "sha256": "9eb730d2362ae1a8c6201698f17009e16671be6946d3d06503ddc0575283db7c",
+    "source": "https://cdn.jsdelivr.net/npm/marked@18.1.2/lib/marked.umd.js",
+    "version": "18.1.2"
+  },
+  "pdf.min.mjs": {
+    "bytes": 458904,
+    "package": "pdfjs-dist",
+    "sha256": "57456c8e0c81e46be31174b499ef77f2b9f5ee46d04412ba627320a36755d4c2",
+    "source": "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.min.mjs",
+    "version": "6.4.299"
+  },
+  "pdf.worker.min.mjs": {
+    "bytes": 1264342,
+    "package": "pdfjs-dist",
+    "sha256": "9536359f1b8367850d485731ca1d5e45c159a7b7a0912325e539937aa21ceb18",
+    "source": "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.worker.min.mjs",
+    "version": "6.4.299"
+  },
+  "pdfjs.LICENSE": {
+    "bytes": 10174,
+    "package": "pdfjs-dist",
+    "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+    "source": "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/LICENSE",
+    "version": "6.4.299"
+  },
+  "purify.min.js": {
+    "bytes": 29828,
+    "package": "dompurify",
+    "sha256": "cd37898f9782adf54820c413191b5691803f0f137c799d6edcfd38523b4c2c31",
+    "source": "https://cdn.jsdelivr.net/npm/dompurify@3.4.17/dist/purify.min.js",
+    "version": "3.4.17"
+  }
+}

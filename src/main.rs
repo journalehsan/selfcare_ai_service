@@ -9,6 +9,7 @@ mod utils;
 
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web, App, HttpServer};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
@@ -24,6 +25,7 @@ use services::{AIService, CacheService};
 #[derive(Clone)]
 pub struct AppState {
     pub ai_model: Arc<RwLock<AIModel>>,
+    pub models_ready: Arc<AtomicBool>,
     pub ai_service: AIService,
     pub cache_service: CacheService,
     pub config: Config,
@@ -71,10 +73,12 @@ async fn main() -> std::io::Result<()> {
             CacheService::new(fallback).await.expect("cache service")
         }
     };
-    let ai_service = AIService::new(ai_model.clone(), config.ai.clone(), config.openrouter.clone());
+    let ai_service = AIService::new(ai_model.clone(), config.ai.clone());
+    let models_ready = Arc::new(AtomicBool::new(false));
 
     let state = AppState {
         ai_model: ai_model.clone(),
+        models_ready: models_ready.clone(),
         ai_service,
         cache_service,
         config: config.clone(),
@@ -83,10 +87,11 @@ async fn main() -> std::io::Result<()> {
 
     // Start model loading in background
     let model_loader = state.ai_model.clone();
-    tokio::spawn(async move {
-        info!("Starting background model loading...");
-        if let Err(e) = model_loader.write().await.load_model().await {
-            error!("Failed to load AI model: {}", e);
+    tokio::task::spawn_blocking(move || {
+        info!("Loading local TinyLlama and Qwen fallback from disk...");
+        match model_loader.blocking_write().load_models() {
+            Ok(()) => models_ready.store(true, Ordering::Release),
+            Err(e) => error!("Failed to load local models: {e:#}"),
         }
     });
 
@@ -100,6 +105,7 @@ async fn main() -> std::io::Result<()> {
 
         App::new()
             .app_data(web::Data::new(state.clone()))
+            .app_data(web::JsonConfig::default().limit(state.config.server.max_json_payload_size))
             .wrap(cors)
             .wrap(Logger::default())
             .service(api::config())

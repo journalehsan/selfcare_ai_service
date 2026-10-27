@@ -24,7 +24,7 @@ logs/
 .env.*.local
 
 # Model files and cache
-models/
+/models/
 *.safetensors
 *.bin
 *.gguf
@@ -60,3 +60,14 @@ book/
 # Local configuration
 config/local.toml
 config/development.toml
+
+# Offline deployment artifacts and local download/build caches
+/offline-bundle/
+/.cache/
+/.venv/
+
+# Offline chat UI image export
+/offline-ui-bundle/
+
+# Python tooling caches
+__pycache__/

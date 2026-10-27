@@ -1,5 +1,7 @@
 # AI Orchestrator Microservice Transformation Plan
 
+> Current deployment direction: offline cache → TinyLlama-1.1B → local Qwen2.5-7B-Instruct Q4_K_M through Candle. OpenRouter and web-search routing have been removed from runtime. Prepare the binary, model files, and Redis image on a connected machine; startup uses local artifacts only. The phases below are the historical cloud-oriented roadmap and do not describe the current inference path. See README.md for configuration and deployment. Build and runtime validation are deferred to the VM after deployment, as requested.
+
 ## Project Overview
 
 Transform the existing SelfCare AI Service into a full-featured AI Orchestrator Microservice that mimics Ollama's API with intelligent caching and routing capabilities.

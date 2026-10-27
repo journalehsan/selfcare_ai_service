@@ -1,13 +1,15 @@
 use serde::{Deserialize, Serialize};
 use std::env;
 
+const DEFAULT_SYSTEM_PROMPT: &str =
+    "You are a helpful assistant. Answer the user's request directly and concisely.";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub server: ServerConfig,
     pub ai: AiConfig,
     pub security: SecurityConfig,
     pub cache: CacheSettings,
-    pub openrouter: OpenRouterSettings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,15 +22,18 @@ pub struct ServerConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiConfig {
+    pub system_prompt: String,
     pub model_name: String,
-    pub model_path: Option<String>,
-    pub huggingface_cache_dir: Option<String>,
+    pub model_path: String,
+    pub fallback_model_name: String,
+    pub fallback_model_path: String,
+    pub fallback_tokenizer_path: String,
     pub context_length: usize,
+    pub fallback_context_length: usize,
+    pub tiny_max_tokens: usize,
     pub temperature: f32,
     pub top_p: f32,
     pub max_tokens: usize,
-    pub quantized: bool,
-    pub quantization_bits: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,13 +58,6 @@ pub struct CacheSettings {
     pub cache_probability: f32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OpenRouterSettings {
-    pub api_key: String,
-    pub base_url: String,
-    pub default_model: String,
-}
-
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -70,15 +68,21 @@ impl Default for Config {
                 max_json_payload_size: 2_000_000, // 2MB
             },
             ai: AiConfig {
+                system_prompt: DEFAULT_SYSTEM_PROMPT.to_string(),
                 model_name: "TinyLlama/TinyLlama-1.1B-Chat-v1.0".to_string(),
-                model_path: None,
-                huggingface_cache_dir: None,
+                model_path: "models/shared/tinyllama-1.1b".to_string(),
+                fallback_model_name: "Qwen2.5-7B-Instruct-Q4_K_M".to_string(),
+                fallback_model_path:
+                    "models/fallback/qwen2.5-7b-instruct/Qwen2.5-7B-Instruct-Q4_K_M.gguf"
+                        .to_string(),
+                fallback_tokenizer_path: "models/fallback/qwen2.5-7b-instruct/tokenizer.json"
+                    .to_string(),
                 context_length: 2048,
+                fallback_context_length: 4096,
+                tiny_max_tokens: 256,
                 temperature: 0.7,
                 top_p: 0.9,
-                max_tokens: 2048,
-                quantized: true,
-                quantization_bits: Some(4),
+                max_tokens: 512,
             },
             security: SecurityConfig {
                 rate_limit_requests: 100,
@@ -96,12 +100,7 @@ impl Default for Config {
                 max_similar_results: 3,
                 memory_cache_entries: 512,
                 memory_ttl_seconds: 3_600,
-                cache_probability: 0.3,
-            },
-            openrouter: OpenRouterSettings {
-                api_key: "".to_string(),
-                base_url: "https://openrouter.ai/api/v1".to_string(),
-                default_model: "openrouter/auto".to_string(),
+                cache_probability: 1.0,
             },
         }
     }
@@ -128,17 +127,34 @@ impl Config {
         }
 
         // AI configuration
+        if let Ok(system_prompt) = env::var("SYSTEM_PROMPT") {
+            config.ai.system_prompt = system_prompt;
+        }
         if let Ok(model_name) = env::var("MODEL_NAME") {
             config.ai.model_name = model_name;
         }
         if let Ok(model_path) = env::var("MODEL_PATH") {
-            config.ai.model_path = Some(model_path);
+            if !model_path.trim().is_empty() {
+                config.ai.model_path = model_path;
+            }
         }
-        if let Ok(huggingface_cache_dir) = env::var("HUGGINGFACE_CACHE_DIR") {
-            config.ai.huggingface_cache_dir = Some(huggingface_cache_dir);
+        if let Ok(name) = env::var("FALLBACK_MODEL_NAME") {
+            config.ai.fallback_model_name = name;
+        }
+        if let Ok(path) = env::var("FALLBACK_MODEL_PATH") {
+            config.ai.fallback_model_path = path;
+        }
+        if let Ok(path) = env::var("FALLBACK_TOKENIZER_PATH") {
+            config.ai.fallback_tokenizer_path = path;
         }
         if let Ok(context_length) = env::var("CONTEXT_LENGTH") {
             config.ai.context_length = context_length.parse()?;
+        }
+        if let Ok(context_length) = env::var("FALLBACK_CONTEXT_LENGTH") {
+            config.ai.fallback_context_length = context_length.parse()?;
+        }
+        if let Ok(max_tokens) = env::var("TINY_MAX_TOKENS") {
+            config.ai.tiny_max_tokens = max_tokens.parse()?;
         }
         if let Ok(temperature) = env::var("TEMPERATURE") {
             config.ai.temperature = temperature.parse()?;
@@ -148,12 +164,6 @@ impl Config {
         }
         if let Ok(max_tokens) = env::var("MAX_TOKENS") {
             config.ai.max_tokens = max_tokens.parse()?;
-        }
-        if let Ok(quantized) = env::var("QUANTIZED") {
-            config.ai.quantized = quantized.parse()?;
-        }
-        if let Ok(quantization_bits) = env::var("QUANTIZATION_BITS") {
-            config.ai.quantization_bits = Some(quantization_bits.parse()?);
         }
 
         // Security configuration
@@ -205,16 +215,28 @@ impl Config {
             config.cache.cache_probability = cache_probability.parse()?;
         }
 
-        // OpenRouter configuration
-        if let Ok(api_key) = env::var("OPENROUTER_API_KEY") {
-            config.openrouter.api_key = api_key;
-        }
-        if let Ok(base_url) = env::var("OPENROUTER_BASE_URL") {
-            config.openrouter.base_url = base_url;
-        }
-        if let Ok(default_model) = env::var("OPENROUTER_DEFAULT_MODEL") {
-            config.openrouter.default_model = default_model;
-        }
+        anyhow::ensure!(config.ai.context_length > 1, "CONTEXT_LENGTH must exceed 1");
+        anyhow::ensure!(
+            config.ai.fallback_context_length > 1,
+            "FALLBACK_CONTEXT_LENGTH must exceed 1"
+        );
+        anyhow::ensure!(
+            config.ai.tiny_max_tokens > 0,
+            "TINY_MAX_TOKENS must be positive"
+        );
+        anyhow::ensure!(config.ai.max_tokens > 0, "MAX_TOKENS must be positive");
+        anyhow::ensure!(
+            config.ai.temperature.is_finite() && config.ai.temperature >= 0.0,
+            "TEMPERATURE must be finite and nonnegative"
+        );
+        anyhow::ensure!(
+            config.ai.top_p > 0.0 && config.ai.top_p <= 1.0,
+            "TOP_P must be in (0, 1]"
+        );
+        anyhow::ensure!(
+            (0.0..=1.0).contains(&config.cache.cache_probability),
+            "CACHE_PROBABILITY must be in [0, 1]"
+        );
 
         Ok(config)
     }

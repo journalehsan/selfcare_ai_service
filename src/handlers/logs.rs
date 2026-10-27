@@ -1,10 +1,8 @@
 use actix_web::{web, HttpResponse, Result};
-use validator::Validate;
 use chrono::Utc;
+use validator::Validate;
 
-use crate::models::{
-    LogAnalysisRequest, LogAnalysisResponse, ErrorResponse
-};
+use crate::models::{ErrorResponse, LogAnalysisRequest, LogAnalysisResponse};
 use crate::AppState;
 
 pub async fn analyze_logs(
@@ -15,29 +13,33 @@ pub async fn analyze_logs(
     if let Err(e) = req.validate() {
         return Ok(HttpResponse::BadRequest().json(ErrorResponse::with_details(
             "Invalid request",
-            format!("Validation error: {}", e)
+            format!("Validation error: {}", e),
         )));
     }
 
-    // Get mutable reference to AI model
-    let mut ai_model = state.ai_model.write().await;
-
     // Process the log analysis request
-    match ai_model.analyze_logs(&req.logs, req.context.clone()).await {
+    match state
+        .ai_service
+        .analyze_logs(&req.logs, req.context.clone())
+        .await
+    {
         Ok(analysis) => {
             // Extract structured information from the analysis
             let issues: Vec<String> = analysis
                 .lines()
-                .filter(|line| line.to_lowercase().contains("issue") ||
-                               line.to_lowercase().contains("error"))
+                .filter(|line| {
+                    line.to_lowercase().contains("issue") || line.to_lowercase().contains("error")
+                })
                 .take(5)
                 .map(|s| s.trim().to_string())
                 .collect();
 
             let recommendations: Vec<String> = analysis
                 .lines()
-                .filter(|line| line.to_lowercase().contains("recommend") ||
-                               line.to_lowercase().contains("suggest"))
+                .filter(|line| {
+                    line.to_lowercase().contains("recommend")
+                        || line.to_lowercase().contains("suggest")
+                })
                 .take(5)
                 .map(|s| s.trim().to_string())
                 .collect();
@@ -67,10 +69,12 @@ pub async fn analyze_logs(
         }
         Err(e) => {
             tracing::error!("Log analysis error: {:?}", e);
-            Ok(HttpResponse::InternalServerError().json(ErrorResponse::with_details(
-                "Failed to analyze logs",
-                e.to_string()
-            )))
+            Ok(
+                HttpResponse::InternalServerError().json(ErrorResponse::with_details(
+                    "Failed to analyze logs",
+                    e.to_string(),
+                )),
+            )
         }
     }
 }

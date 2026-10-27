@@ -1,0 +1,9 @@
+FROM scratch
+COPY rootfs/ /
+COPY --chown=10001:10001 rootfs/app/ /app/
+USER 10001:10001
+WORKDIR /app
+ENV HOST=0.0.0.0 PORT=5732 WORKERS=4 RUST_LOG=info HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+EXPOSE 5732
+HEALTHCHECK --interval=15s --timeout=5s --start-period=180s --retries=4 CMD ["/usr/bin/curl", "--fail", "--silent", "--max-time", "4", "http://127.0.0.1:5732/api/ready"]
+ENTRYPOINT ["/usr/local/bin/selfcare_ai_service"]

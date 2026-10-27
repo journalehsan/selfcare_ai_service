@@ -1,0 +1,11 @@
+# Build context is assembled by scripts/prepare-ui.sh; no model files enter it.
+ARG NGINX_IMAGE=nginx:alpine
+FROM ${NGINX_IMAGE}
+COPY nginx-ui.conf /etc/nginx/nginx.conf
+COPY index.html /usr/share/nginx/html/index.html
+COPY assets/ /usr/share/nginx/html/assets/
+USER 101:101
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s CMD wget -q -O- http://127.0.0.1:8080/healthz || exit 1
+ENTRYPOINT ["nginx"]
+CMD ["-g", "daemon off;"]

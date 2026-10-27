@@ -1,19 +1,3 @@
-pub fn generate_chat_prompt(message: &str, conversation_id: Option<String>) -> String {
-    let context = if let Some(id) = conversation_id {
-        format!("\n[Conversation ID: {}]", id)
-    } else {
-        String::new()
-    };
-
-    format!(
-        r#"You are a helpful AI assistant specializing in troubleshooting and technical support.{}
-
-User: {}
-Assistant: "#,
-        context, message
-    )
-}
-
 pub fn generate_log_analysis_prompt(logs: &str, context: Option<String>) -> String {
     let context_info = context.unwrap_or_else(|| "No additional context provided".to_string());
 
