@@ -3,21 +3,36 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::config::AiConfig;
-use crate::models::{AIModel, ChatRequest, ChatResponse, Generation};
+use crate::models::{ChatRequest, ChatResponse, Generation, InferenceBackend, TaskComplexity};
 use crate::utils::prompts::{generate_log_analysis_prompt, generate_script_prompt};
 
 #[derive(Clone)]
 pub struct AIService {
-    ai_model: Arc<RwLock<AIModel>>,
+    ai_model: Arc<RwLock<dyn InferenceBackend>>,
     ai_config: AiConfig,
 }
 
 impl AIService {
-    pub fn new(ai_model: Arc<RwLock<AIModel>>, ai_config: AiConfig) -> Self {
+    pub fn new(ai_model: Arc<RwLock<dyn InferenceBackend>>, ai_config: AiConfig) -> Self {
         Self {
             ai_model,
             ai_config,
         }
+    }
+
+    pub async fn evaluate_task(&self, req: &ChatRequest) -> Result<TaskComplexity> {
+        let model = self.ai_model.clone();
+        let prompt = req.message.clone();
+        let system_prompt = req
+            .effective_system_prompt(&self.ai_config.system_prompt)
+            .to_string();
+        tokio::task::spawn_blocking(move || {
+            model
+                .blocking_write()
+                .evaluate_task(&prompt, &system_prompt)
+        })
+        .await
+        .context("Task evaluation worker failed")
     }
 
     pub async fn generate(&self, req: &ChatRequest) -> Result<ChatResponse> {

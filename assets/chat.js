@@ -1,7 +1,6 @@
 /* SelfCare browser client. No conversations or document content enter browser storage. */
 'use strict';
 (() => {
-  const QWEN = 'Qwen2.5-7B-Instruct-Q4_K_M';
   const OFFICE_API = 'http://10.227.36.102:5732';
   const MAX_CHARACTERS = 200000;
   const MAX_SOURCE_BYTES = 600000;
@@ -225,7 +224,7 @@
           try {
             result = await fetch(this.baseUrl + '/api/chat', {
               method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, signal: controller.signal,
-              body: JSON.stringify({ message: prompt, model: options.model || QWEN, max_tokens: options.maxTokens || 512, temperature: options.temperature ?? .25, stream: false, cache_bypass: options.bypass || false, ...(this.activeChat?.serverId ? { conversation_id: this.activeChat.serverId } : {}) }),
+              body: JSON.stringify({ message: prompt, model: options.model || this.model || 'auto', max_tokens: options.maxTokens || 512, temperature: options.temperature ?? .25, stream: false, cache_bypass: options.bypass || false, ...(this.activeChat?.serverId ? { conversation_id: this.activeChat.serverId } : {}) }),
             });
           } catch (error) {
             if (error.name === 'AbortError') throw error;

@@ -34,6 +34,7 @@ const state = page => page.evaluate(() => {
   assert.equal(calls.length,0); assert.equal((await state(page)).draft,'Hello\n');
   await page.locator('#message-input').press('Enter'); await idle();
   assert.equal((await state(page)).messages.length,2);
+  assert.equal(calls.at(-1).model, 'auto');
   await send('Who owns the review?');
   assert.match(calls.at(-1).message,/Maya owns the review/); assert.match(calls.at(-1).message,/Who owns the review/);
   await fresh();
@@ -53,6 +54,7 @@ const state = page => page.evaluate(() => {
   await page.getByRole('button',{name:'Summarize',exact:true}).click();
   await send(source);
   assert.equal((await state(page)).error,''); assert.equal((await state(page)).messages.length,2); assert.equal(rejected,true);
+  assert.ok(calls.slice(summaryStart).every(call => call.model === 'auto'));
   const sectionCalls = calls.slice(summaryStart).filter(c => c.message.includes('<source>'));
   // The first failed section is retried as smaller parts; successful sections
   // must reconstruct every character of the original, including the final tail.
@@ -60,6 +62,13 @@ const state = page => page.evaluate(() => {
   assert.equal(reconstructed, source); assert.match((await state(page)).messages[1].contextNote,/all \d+ sections/);
   await page.getByRole('button',{name:'Chat',exact:true}).click();
   await send('What was the deadline?'); assert.ok(calls.at(-1).message.length < 10000); assert.match(calls.at(-1).message,/23 December/);
+  await page.getByRole('combobox', {name:'Response model'}).selectOption('Qwen2.5-7B-Instruct-Q4_K_M');
+  await fresh(); await send('A direct Qwen request');
+  assert.equal(calls.at(-1).model, 'Qwen2.5-7B-Instruct-Q4_K_M');
+  await page.getByRole('button',{name:'Summarize',exact:true}).click();
+  await send('Meeting notes: Maya owns the review.');
+  assert.equal(calls.at(-1).model, 'Qwen2.5-7B-Instruct-Q4_K_M');
+  await page.getByRole('combobox', {name:'Response model'}).selectOption('auto');
   await fresh();
   await page.locator('input[type=file]').setInputFiles({name:'notes.txt',mimeType:'text/plain',buffer:Buffer.from('Meeting notes: Maya owns the review. Deadline 12 November.')}); await idle();
   assert.equal((await state(page)).attachment.name,'notes.txt'); assert.equal((await state(page)).mode,'summary');
